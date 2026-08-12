@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>CoTransport Alert - Agrégateur Tut Tut & Shopopop Géolocalisé</title>
+  
+  <!-- SEO & Meta -->
+  <meta name="description" content="Agrégateur unifié de notifications de cotransportage géolocalisé pour livreurs Tut Tut et Shopopop. Carte interactive, filtres de rentabilité et alertes sonores.">
+  
+  <!-- Optimization iPhone / iOS PWA -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="CoTransport">
+  <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2972/2972531.png">
+
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  
+  <!-- Styles Application -->
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+  <!-- Header Navbar -->
+  <header class="navbar">
+    <div class="brand">
+      <div class="brand-icon">
+        <i class="fa-solid fa-truck-ramp-box"></i>
+      </div>
+      <div>
+        <h1 class="brand-title">CoTransport Alert</h1>
+        <div class="brand-subtitle">Tut Tut & Shopopop • Agrégateur Géolocalisé</div>
+      </div>
+    </div>
+
+    <!-- Métriques en direct -->
+    <div class="nav-metrics">
+      <div class="status-indicator">
+        <div class="status-dot"></div>
+        <span>Écoute Active</span>
+      </div>
+      <div class="metric-pill">
+        <span>Gains Éligibles :</span>
+        <span id="total-earnings" class="value">0.00 €</span>
+      </div>
+      <div class="metric-pill">
+        <span>Courses :</span>
+        <span id="active-count" class="value" style="color: #6366f1;">0</span>
+      </div>
+    </div>
+
+    <!-- Actions du Header -->
+    <div class="nav-actions">
+      <button id="btn-toggle-sim" class="btn btn-sim" title="Lancer le simulateur de notifications en direct">
+        <i class="fa-solid fa-play"></i> Auto Simu
+      </button>
+      <button id="btn-trigger-onesim" class="btn" title="Simuler une notification instantanée">
+        <i class="fa-solid fa-plus"></i> +1 Course
+      </button>
+      <button id="btn-sound-toggle" class="btn btn-icon-only active" title="Activer / Désactiver les bips sonores">
+        <i class="fa-solid fa-volume-high"></i>
+      </button>
+      <button id="btn-voice-toggle" class="btn btn-icon-only active" title="Activer / Désactiver l'annonce vocale des courses">
+        <i class="fa-solid fa-comment-dots"></i>
+      </button>
+      <button id="btn-open-integration" onclick="openIntegrationModal()" class="btn btn-primary" title="Guide d'intégration de votre iPhone ou smartphone Android">
+        <i class="fa-brands fa-apple"></i> Connexion Smartphone
+      </button>
+    </div>
+  </header>
+
+  <script>
+    function openIntegrationModal() {
+      var modal = document.getElementById('modal-integration');
+      if (modal) {
+        modal.style.display = 'flex';
+        modal.classList.add('active');
+      }
+    }
+    function closeIntegrationModal() {
+      var modal = document.getElementById('modal-integration');
+      if (modal) {
+        modal.style.display = 'none';
+        modal.classList.remove('active');
+      }
+    }
+  </script>
+
+  <!-- Application Container (Grid Layout) -->
+  <main class="app-container">
+    
+    <!-- Sidebar : Filtres et Flux de Notifications -->
+    <aside class="sidebar">
+      
+      <!-- Section Géolocalisation & Recherche de Ville -->
+      <section class="sidebar-section">
+        <div class="section-title">
+          <span><i class="fa-solid fa-earth-europe"></i> Zone de Livraison (Dunkerque par défaut)</span>
+        </div>
+
+        <div class="location-search-container">
+          <div style="display: flex; gap: 0.5rem; position: relative;">
+            <input type="text" id="input-location-search" class="input-control" placeholder="Rechercher une ville (ex: Dunkerque, Coudekerque...)" autocomplete="off">
+            <button id="btn-search-location" class="btn btn-primary" style="padding: 0.5rem 0.85rem;" title="Lancer la recherche">
+              <i class="fa-solid fa-magnifying-glass"></i>
+            </button>
+          </div>
+          <div id="location-search-results" class="search-results-dropdown"></div>
+        </div>
+      </section>
+
+      <!-- Section Filtres de Recherche -->
+      <section class="sidebar-section">
+        <div class="section-title">
+          <span><i class="fa-solid fa-sliders"></i> Filtres d'Alerte</span>
+          <button id="btn-clear-feed" class="btn" style="padding: 0.2rem 0.5rem; font-size: 0.72rem;">Vider</button>
+        </div>
+
+        <div class="control-grid">
+          
+          <!-- Slider Rayon de Recherche -->
+          <div class="form-group full-width">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <label for="radius-range">Rayon d'action (autour de vous)</label>
+              <span id="radius-value" class="range-value">10 km</span>
+            </div>
+            <div class="range-slider-container">
+              <input type="range" id="radius-range" class="range-slider" min="1" max="30" value="10">
+            </div>
+          </div>
+
+          <!-- Montant Minimum (€) -->
+          <div class="form-group">
+            <label for="min-price">Prix Min (€)</label>
+            <input type="number" id="min-price" class="input-control" value="5.00" step="0.5">
+          </div>
+
+          <!-- Rentabilité Minimum (€/km) -->
+          <div class="form-group">
+            <label for="min-km-price">Gain Min (€/km)</label>
+            <input type="number" id="min-km-price" class="input-control" value="1.00" step="0.1">
+          </div>
+
+          <!-- Choix des Plateformes -->
+          <div class="form-group full-width">
+            <label>Plateformes actives</label>
+            <div class="platform-toggles">
+              <div class="toggle-chip active" data-platform="tuttut">
+                <i class="fa-solid fa-truck-fast"></i> Tut Tut
+              </div>
+              <div class="toggle-chip active" data-platform="shopopop">
+                <i class="fa-solid fa-bag-shopping"></i> Shopopop
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- Section Testeur Manuel de Notification / Presse-papier iOS -->
+      <section class="sidebar-section" style="padding: 0.85rem 1.25rem;">
+        <label style="font-size: 0.75rem; margin-bottom: 0.35rem; display: block;">Copier-coller une alerte Tut Tut / Shopopop (iOS)</label>
+        <div style="display: flex; gap: 0.5rem;">
+          <input type="text" id="input-test-text" class="input-control" placeholder="Ex: Shopopop Auchan Grande-Synthe 3km 10.50€" style="font-size: 0.8rem;">
+          <button id="btn-test-parse" class="btn btn-primary" style="padding: 0.4rem 0.75rem; font-size: 0.78rem; white-space: nowrap;">
+            Analyser
+          </button>
+        </div>
+      </section>
+
+      <!-- Feed Header -->
+      <div class="feed-header">
+        <div style="font-weight: 700; font-size: 0.9rem; display: flex; align-items: center; gap: 0.5rem;">
+          <i class="fa-solid fa-bell-concierge" style="color: #6366f1;"></i>
+          <span>Offres Disponibles</span>
+        </div>
+        <span id="feed-count-badge" class="feed-count-badge">0</span>
+      </div>
+
+      <!-- Feed List Container -->
+      <div id="feed-list" class="feed-list">
+        <div class="empty-feed">
+          <i class="fa-solid fa-radar"></i>
+          <p>Aucune course active en cours.<br>Lancez le simulateur ou attendez une notification.</p>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- Map View Area -->
+    <section class="map-view-container">
+      <div id="map"></div>
+
+      <!-- Controles de Géolocalisation Flottants sur la Carte -->
+      <div class="map-overlay-controls">
+        <div class="overlay-panel">
+          <button id="btn-recenter-gps" class="btn btn-primary" title="Détecter et recentrer sur ma position GPS exacte">
+            <i class="fa-solid fa-location-crosshairs"></i> Ma Position GPS
+          </button>
+          <button id="btn-toggle-tracking" class="btn" title="Activer le suivi GPS continu en déplacement">
+            <i class="fa-solid fa-satellite"></i> Suivi GPS
+          </button>
+          <div id="current-location-badge" class="location-badge">
+            <i class="fa-solid fa-location-dot" style="color: #10b981;"></i> Dunkerque, Nord
+          </div>
+        </div>
+      </div>
+
+      <!-- Légende des Plateformes sur la Carte -->
+      <div class="platform-legend">
+        <div class="legend-item">
+          <div class="legend-color tuttut"></div>
+          <span>Tut Tut</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-color shopopop"></div>
+          <span>Shopopop</span>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Modal : Intégration Smartphone (iPhone & Android) -->
+  <div id="modal-integration" class="modal-backdrop">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 class="modal-title">
+          <i class="fa-brands fa-apple" style="color: #ffffff;"></i>
+          Connexion iPhone & Android
+        </h2>
+        <button id="close-integration-modal" onclick="closeIntegrationModal()" class="modal-close">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- Onglets iOS / Android -->
+      <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1.25rem; margin-bottom: 1.25rem;">
+        <h3 style="font-size: 1rem; font-weight: 800; color: #ffffff; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+          <i class="fa-brands fa-apple" style="color: #a5b4fc;"></i>
+          Guide Spécifique iPhone (iOS)
+        </h3>
+        
+        <p style="font-size: 0.88rem; color: #9ca3af; line-height: 1.5; margin-bottom: 1rem;">
+          En raison des restrictions de confidentialité d'Apple sur iOS, les applications tierces ne peuvent pas lire directement les notifications des autres apps en arrière-plan. Voici les <strong>3 meilleures solutions sur iPhone</strong> :
+        </p>
+
+        <div style="display: flex; flex-direction: column; gap: 0.85rem;">
+          
+          <div style="background: rgba(255,255,255,0.04); padding: 0.85rem; border-radius: 8px; border-left: 3px solid #6366f1;">
+            <strong style="color: white; font-size: 0.88rem;">1. Installer sur l'Écran d'Accueil iPhone (PWA) :</strong>
+            <p style="font-size: 0.82rem; color: #9ca3af; margin-top: 0.25rem;">
+              Dans Safari sur votre iPhone, touchez l'icône <strong>Partager <i class="fa-solid fa-arrow-up-from-bracket"></i></strong> puis <strong>"Sur l'écran d'accueil"</strong>. Vous aurez l'application en plein écran comme un jeu vidéo avec le son et le GPS actif.
+            </p>
+          </div>
+
+          <div style="background: rgba(255,255,255,0.04); padding: 0.85rem; border-radius: 8px; border-left: 3px solid #10b981;">
+            <strong style="color: white; font-size: 0.88rem;">2. Raccourci iOS "Partager vers CoTransport" :</strong>
+            <p style="font-size: 0.82rem; color: #9ca3af; margin-top: 0.25rem;">
+              Dans l'application **Raccourcis** d'Apple, créez un raccourci qui prend le texte sélectionné d'une alerte Tut Tut ou Shopopop et l'envoie en 1 clic au tableau de bord.
+            </p>
+          </div>
+
+          <div style="background: rgba(255,255,255,0.04); padding: 0.85rem; border-radius: 8px; border-left: 3px solid #FF5A1F;">
+            <strong style="color: white; font-size: 0.88rem;">3. Transfert d'E-mails d'Alertes :</strong>
+            <p style="font-size: 0.82rem; color: #9ca3af; margin-top: 0.25rem;">
+              Si vous recevez des e-mails d'alertes Tut Tut / Shopopop sur votre iPhone, configurez une règle de transfert automatique d'e-mail vers le serveur pour une capture instantanée.
+            </p>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Section Android -->
+      <div style="background: rgba(0,0,0,0.2); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1rem;">
+        <h3 style="font-size: 0.95rem; font-weight: 700; color: white; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+          <i class="fa-brands fa-android" style="color: #10b981;"></i>
+          Alternative Android (MacroDroid)
+        </h3>
+        <p style="font-size: 0.82rem; color: #9ca3af;">
+          Sur Android, l'application MacroDroid peut intercepter directement les notifications Push en arrière-plan via `NotificationListenerService`.
+        </p>
+      </div>
+
+      <div style="margin-top: 1.5rem; text-align: right;">
+        <button onclick="closeIntegrationModal()" class="btn btn-primary">
+          Fermer
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Scripts Application -->
+  <script src="js/parser.js"></script>
+  <script src="js/notifier.js"></script>
+  <script src="js/map.js"></script>
+  <script src="js/simulator.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
